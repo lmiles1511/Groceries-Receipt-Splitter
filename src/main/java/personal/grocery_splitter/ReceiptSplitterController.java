@@ -4,6 +4,7 @@ import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.fxml.FXML;
 import javafx.scene.control.*;
+import javafx.scene.layout.VBox;
 import javafx.stage.FileChooser;
 import net.sourceforge.tess4j.TesseractException;
 import org.apache.pdfbox.pdmodel.PDDocument;
@@ -15,8 +16,7 @@ import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -25,38 +25,56 @@ public class ReceiptSplitterController {
     @FXML private TableView<Item> itemTable;
     @FXML private TableColumn<Item, String> itemNameColumn;
     @FXML private TableColumn<Item, Double> itemPriceColumn;
-    @FXML private TableColumn<Item, CheckBox> personColumn;
     @FXML private ComboBox<String> purchaserDropdown;
 
     private final ObservableList<Item> items = FXCollections.observableArrayList();
     private final ObservableList<String> people = FXCollections.observableArrayList();
     private final Map<String, Double> totals = new HashMap<>();
+    private final Map<Item, Set<String>> itemAssignments = new HashMap<>();
 
     @FXML
     public void initialize() {
+        // Set up the table columns
         itemNameColumn.setCellValueFactory(data -> data.getValue().itemNameProperty());
         itemPriceColumn.setCellValueFactory(data -> data.getValue().itemPriceProperty().asObject());
-        personColumn.setCellFactory(column -> new TableCell<>() {
+
+        // Create the column for checkboxes
+        TableColumn<Item, Void> assignColumn = new TableColumn<>("Assign");
+        assignColumn.setCellFactory(col -> new TableCell<>() {
             @Override
-            protected void updateItem(CheckBox checkBox, boolean empty) {
-                super.updateItem(checkBox, empty);
+            protected void updateItem(Void item, boolean empty) {
+                super.updateItem(item, empty);
                 if (empty || getTableRow() == null) {
                     setGraphic(null);
                 } else {
-                    Item item = getTableRow().getItem();
-                    if (item != null && !people.isEmpty()) {
-                        CheckBox cb = new CheckBox();
-                        cb.selectedProperty().addListener((obs, wasSelected, isSelected) -> {
-                            if (isSelected) {
-                                totals.put(people.get(0), totals.getOrDefault(people.get(0), 0.0) + item.getItemPrice());
+                    Item currentItem = getTableRow().getItem();
+                    VBox checkboxContainer = new VBox();
+                    for (String person : people) {
+                        CheckBox checkBox = new CheckBox(person);
+                        checkBox.setSelected(itemAssignments.getOrDefault(currentItem, new HashSet<>()).contains(person));
+                        checkBox.selectedProperty().addListener((observable, oldValue, newValue) -> {
+                            if (newValue) {
+                                itemAssignments.computeIfAbsent(currentItem, k -> new HashSet<>()).add(person);
+                            } else {
+                                Set<String> owners = itemAssignments.getOrDefault(currentItem, new HashSet<>());
+                                owners.remove(person);
+                                if (owners.isEmpty()) {
+                                    itemAssignments.remove(currentItem);
+                                } else {
+                                    itemAssignments.put(currentItem, owners);
+                                }
                             }
                         });
-                        setGraphic(cb);
+                        checkboxContainer.getChildren().add(checkBox);
                     }
+                    setGraphic(checkboxContainer);
                 }
             }
         });
 
+        itemTable.getColumns().add(assignColumn);
+
+        // Set the items for the table and the dropdown for the purchaser
         itemTable.setItems(items);
         purchaserDropdown.setItems(people);
     }
@@ -80,7 +98,13 @@ public class ReceiptSplitterController {
         dialog.showAndWait().ifPresent(name -> {
             if (!people.contains(name)) {
                 people.add(name);
-                purchaserDropdown.getItems().add(name);
+                // Ensure the person is added to the ComboBox only once
+                if (!purchaserDropdown.getItems().contains(name)) {
+                    purchaserDropdown.getItems().add(name);
+                }
+
+                // Update item assignments for each item in the table
+                itemTable.refresh(); // Refresh the table to reflect the changes
             }
         });
     }
@@ -93,11 +117,23 @@ public class ReceiptSplitterController {
             return;
         }
 
+        Map<String, Double> personTotals = new HashMap<>();
+        for (Map.Entry<Item, Set<String>> entry : itemAssignments.entrySet()) {
+            Item item = entry.getKey();
+            Set<String> assignedPeople = entry.getValue();
+            if (!assignedPeople.isEmpty()) {
+                double share = item.getItemPrice() / assignedPeople.size();
+                for (String person : assignedPeople) {
+                    personTotals.put(person, personTotals.getOrDefault(person, 0.0) + share);
+                }
+            }
+        }
+
         StringBuilder summary = new StringBuilder("Summary:\n");
-        for (Map.Entry<String, Double> entry : totals.entrySet()) {
+        for (Map.Entry<String, Double> entry : personTotals.entrySet()) {
             if (!entry.getKey().equals(purchaser)) {
                 summary.append(entry.getKey()).append(" owes ").append(purchaser).append(": $")
-                        .append(entry.getValue()).append("\n");
+                        .append(String.format("%.2f", entry.getValue())).append("\n");
             }
         }
         showAlert(Alert.AlertType.INFORMATION, "Summary", summary.toString());
@@ -106,28 +142,15 @@ public class ReceiptSplitterController {
     public void parseReceipt(File receiptFile) {
         try {
             if (receiptFile.getName().endsWith(".pdf")) {
-                // Handle PDF files using PDFBox
                 PDDocument document = PDDocument.load(receiptFile);
                 PDFRenderer pdfRenderer = new PDFRenderer(document);
-
-                // Extract text from the first page
-                BufferedImage image = pdfRenderer.renderImageWithDPI(0, 300);  // Convert PDF to image at 300 DPI
-
-                // Perform OCR to extract text from the image
+                BufferedImage image = pdfRenderer.renderImageWithDPI(0, 300);
                 String result = performOCR(image);
-
-                // Process the OCR result to extract item names and prices
                 processItemsFromOCR(result);
-
                 document.close();
             } else if (receiptFile.getName().endsWith(".jpg") || receiptFile.getName().endsWith(".png")) {
-                // Handle image files directly with Tesseract
                 BufferedImage image = ImageIO.read(receiptFile);
-
-                // Perform OCR to extract text from the image
                 String result = performOCR(image);
-
-                // Process the OCR result to extract item names and prices
                 processItemsFromOCR(result);
             } else {
                 showAlert(Alert.AlertType.ERROR, "Error", "Unsupported file type. Please upload a PDF or image file.");
@@ -139,27 +162,17 @@ public class ReceiptSplitterController {
     }
 
     private String performOCR(BufferedImage image) throws TesseractException {
-        // Set up Tesseract instance
         Tesseract tesseract = new Tesseract();
-        tesseract.setDatapath("C:\\Program Files\\Tesseract-OCR\\tessdata"); // Replace with the correct path
-
-        // Set the language for OCR (e.g., English)
+        tesseract.setDatapath("C:\\Program Files\\Tesseract-OCR\\tessdata");
         tesseract.setLanguage("eng");
-
-        // Perform OCR on the image
         return tesseract.doOCR(image);
     }
 
     private void processItemsFromOCR(String result) {
-        // Regex to match item name before the 12-digit product code
         String itemRegex = "([A-Za-z\\s-]+(?=\\s\\d{12}))";
         Pattern itemPattern = Pattern.compile(itemRegex);
         Matcher itemMatcher = itemPattern.matcher(result);
-
-        // Clear existing items before adding new ones
         items.clear();
-
-        // Split the input into lines for processing
         String[] lines = result.split("\\r?\\n");
 
         for (int i = 0; i < lines.length; i++) {
@@ -171,30 +184,22 @@ public class ReceiptSplitterController {
                 if (itemName.equals("SUBTOTAL")) continue;
 
                 double itemPrice = 0.0;
-
-                // Check if the next line contains "@" for weighed items
                 if (i + 1 < lines.length && lines[i + 1].contains("@")) {
                     String weightLine = lines[i + 1];
-                    String priceRegex = "\\d+\\.\\d{2}$"; // Match price at the end of the line
+                    String priceRegex = "\\d+\\.\\d{2}$";
                     Matcher priceMatcher = Pattern.compile(priceRegex).matcher(weightLine);
-
                     if (priceMatcher.find()) {
                         itemPrice = Double.parseDouble(priceMatcher.group());
                     }
-                    i++; // Skip the weight line after processing
+                    i++;
                 } else {
-                    // Handle regular item price
                     String priceRegex = "\\d+\\.\\d{2}$";
                     Matcher priceMatcher = Pattern.compile(priceRegex).matcher(line);
-
                     if (priceMatcher.find()) {
                         itemPrice = Double.parseDouble(priceMatcher.group());
                     }
                 }
-
-                // Create a new Item and add it to the list
-                Item item = new Item(itemName, itemPrice);
-                items.add(item);
+                items.add(new Item(itemName, itemPrice));
             }
         }
     }

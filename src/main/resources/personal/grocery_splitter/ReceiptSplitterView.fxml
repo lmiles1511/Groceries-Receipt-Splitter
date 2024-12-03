@@ -10,7 +10,6 @@
             <columns>
                 <TableColumn fx:id="itemNameColumn" text="Item Name"/>
                 <TableColumn fx:id="itemPriceColumn" text="Price"/>
-                <TableColumn fx:id="personColumn" text="Assign"/>
             </columns>
         </TableView>
         <HBox spacing="10" alignment="CENTER">
