@@ -169,7 +169,8 @@ public class ReceiptSplitterController {
     }
 
     private void processItemsFromOCR(String result) {
-        String itemRegex = "([A-Za-z\\s-]+(?=\\s\\d{12}))";
+        // Update the item regex to capture alphanumeric item names
+        String itemRegex = "([A-Za-z0-9\\s-]+(?=\\s\\d{12}))";
         Pattern itemPattern = Pattern.compile(itemRegex);
         Matcher itemMatcher = itemPattern.matcher(result);
         items.clear();
@@ -181,7 +182,10 @@ public class ReceiptSplitterController {
 
             if (matcher.find()) {
                 String itemName = matcher.group(1).trim();
-                if (itemName.equals("SUBTOTAL")) continue;
+                // Stop processing when encountering 'SUBTOTAL'
+                if (itemName.equalsIgnoreCase("SUBTOTAL")) {
+                    break; // Stop processing further items
+                }
 
                 double itemPrice = 0.0;
                 if (i + 1 < lines.length && lines[i + 1].contains("@")) {
@@ -199,7 +203,9 @@ public class ReceiptSplitterController {
                         itemPrice = Double.parseDouble(priceMatcher.group());
                     }
                 }
-                items.add(new Item(itemName, itemPrice));
+                if (itemPrice > 0) {
+                    items.add(new Item(itemName, itemPrice));
+                }
             }
         }
     }
