@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+<VBox xmlns="http://javafx.com/javafx/20.0.0" xmlns:fx="http://javafx.com/fxml/1"
+      fx:controller="personal.grocery_splitter.ReceiptSplitterController" spacing="10" alignment="CENTER" prefWidth="600">
+    <children>
+        <Label text="Receipt Splitter Application" style="-fx-font-size: 20px;"/>
+        <Button text="Upload Receipt" onAction="#onUploadReceipt"/>
+        <TableView fx:id="itemTable">
+            <columns>
+                <TableColumn fx:id="itemNameColumn" text="Item Name"/>
+                <TableColumn fx:id="itemPriceColumn" text="Price"/>
+                <TableColumn fx:id="personColumn" text="Assign"/>
+            </columns>
+        </TableView>
+        <HBox spacing="10" alignment="CENTER">
+            <Button text="Add Person" onAction="#onAddPerson"/>
+            <ComboBox fx:id="purchaserDropdown" promptText="Select Purchaser"/>
+        </HBox>
+        <Button text="Finish" onAction="#onFinish"/>
+    </children>
+</VBox>
