@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<launch4jConfig>
+  <dontWrapJar>false</dontWrapJar>
+  <headerType>gui</headerType>
+  <jar>C:\Users\logan\OneDrive\Coding_Projects\GrocerySplitter\GrocerySplitter\out\artifacts\grocery_splitter_jar\grocery_splitter.jar</jar>
+  <outfile>C:\Users\logan\OneDrive\Coding_Projects\GrocerySplitter\GrocerySplitter.exe</outfile>
+  <errTitle></errTitle>
+  <cmdLine></cmdLine>
+  <chdir>.</chdir>
+  <priority>normal</priority>
+  <downloadUrl></downloadUrl>
+  <supportUrl></supportUrl>
+  <stayAlive>false</stayAlive>
+  <restartOnCrash>false</restartOnCrash>
+  <manifest></manifest>
+  <icon>C:\Users\logan\OneDrive\Coding_Projects\GrocerySplitter\1486504338-check-check-marks-list-checklist-documents-todo-list_81298.ico</icon>
+  <jre>
+    <path>%JAVA_HOME%;%PATH%</path>
+    <requiresJdk>false</requiresJdk>
+    <requires64Bit>false</requires64Bit>
+    <minVersion></minVersion>
+    <maxVersion></maxVersion>
+    <opt>--module-path &quot;C:\Users\logan\OneDrive - UAB - The University of Alabama at Birmingham\UAB Files\FA 2024\CS-420\javafx-sdk-22.0.2-windows\lib&quot; --add-modules javafx.controls,javafx.fxml </opt>
+  </jre>
+</launch4jConfig>
