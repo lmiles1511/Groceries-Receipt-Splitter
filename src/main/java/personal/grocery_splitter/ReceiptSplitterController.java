@@ -3,6 +3,7 @@ package personal.grocery_splitter;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.fxml.FXML;
+import javafx.geometry.Pos;
 import javafx.scene.control.*;
 import javafx.scene.layout.VBox;
 import javafx.stage.FileChooser;
@@ -118,6 +119,8 @@ public class ReceiptSplitterController {
         }
 
         Map<String, Double> personTotals = new HashMap<>();
+        Map<String, List<String>> personItems = new HashMap<>();  // Keep track of items each person owes
+
         for (Map.Entry<Item, Set<String>> entry : itemAssignments.entrySet()) {
             Item item = entry.getKey();
             Set<String> assignedPeople = entry.getValue();
@@ -125,19 +128,48 @@ public class ReceiptSplitterController {
                 double share = item.getItemPrice() / assignedPeople.size();
                 for (String person : assignedPeople) {
                     personTotals.put(person, personTotals.getOrDefault(person, 0.0) + share);
+                    personItems.computeIfAbsent(person, k -> new ArrayList<>()).add(item.getItemName());
                 }
             }
         }
 
-        StringBuilder summary = new StringBuilder("Summary:\n");
+        // Create a dialog to show the summary and owed items
+        Dialog<Void> dialog = new Dialog<>();
+        dialog.setTitle("Summary");
+
+        // Set the dialog content
+        VBox dialogVbox = new VBox(10);
+        dialogVbox.setAlignment(Pos.CENTER);
+
         for (Map.Entry<String, Double> entry : personTotals.entrySet()) {
-            if (!entry.getKey().equals(purchaser)) {
-                summary.append(entry.getKey()).append(" owes ").append(purchaser).append(": $")
-                        .append(String.format("%.2f", entry.getValue())).append("\n");
-            }
+            String person = entry.getKey();
+            Double totalOwed = entry.getValue();
+
+            // Create a label showing the total owed
+            Label label = new Label(person + " owes: $" + String.format("%.2f", totalOwed));
+
+            // Create a TextArea to display the list of items this person owes
+            TextArea textArea = new TextArea();
+            textArea.setEditable(false);
+            textArea.setText(String.join("\n", personItems.get(person)));  // List of items they owe
+            textArea.setPrefRowCount(5);
+
+            // Add label and text area to the dialog VBox
+            dialogVbox.getChildren().add(label);
+            dialogVbox.getChildren().add(textArea);
         }
-        showAlert(Alert.AlertType.INFORMATION, "Summary", summary.toString());
+
+        // Set up the OK button to close the dialog
+        ButtonType okButtonType = new ButtonType("OK", ButtonBar.ButtonData.OK_DONE);
+        dialog.getDialogPane().getButtonTypes().add(okButtonType);
+
+        // Add VBox to the dialog
+        dialog.getDialogPane().setContent(dialogVbox);
+
+        // Show the dialog
+        dialog.showAndWait();
     }
+
 
     public void parseReceipt(File receiptFile) {
         try {
